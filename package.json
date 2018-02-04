@@ -1,0 +1,17 @@
+{
+  "name": "R2dTr0n",
+  "version": "0.0.1",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "discord.js": "^11.3.0",
+    "node-rsa": "^0.4.2",
+    "express": "^4.16.2"
+  },
+  "engines": {
+    "node": "8.x",
+    "npm": "*"
+  }
+}
