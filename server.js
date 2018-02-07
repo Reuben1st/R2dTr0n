@@ -1,93 +1,241 @@
-const http = require('http');
+if (process.env.NODE_ENV !== 'production') {
+  require('dotenv').load();
+}
 
-const express = require('express');
-const app = express();
-app.get("/", (request, response) => {
-  console.log(Date.now() + " Ping Received");
-  response.sendStatus(200);
-});
-app.listen(process.env.PORT);
-setInterval(() => {
-  http.get(`http://${process.env.PROJECT_DOMAIN}.glitch.me/`);
-}, 280000);
-
-
-// Load up the discord.js library
 const Discord = require("discord.js");
-
-// This is your client. Some people call it `bot`, some people call it `self`, 
-// some might call it `cootchie`. Either way, when you see `client.something`, or `bot.something`,
-// this is what we're refering to. Your client.
 const client = new Discord.Client();
-
-// Here we load the config.json file that contains our token and our prefix values. 
+const NodeRSA = require('node-rsa');
+const http = require('http');
+const express = require('express');
 //const config = require("./config.json");
-// config.token contains the bot's token
-// config.prefix contains the message prefix.
+
+const key = new NodeRSA(process.env.privateRSA)
+//var PublicPem = key.exportKey('pkcs1-public-pem');
+//var privatePem = key.exportKey('pkcs1-pem');
+
+
+if (process.env.NODE_ENV == 'production') {
+  const app = express();
+  app.get("/", (request, response) => {
+    console.log(Date.now() + " Ping Received");
+    response.sendStatus(200);
+  });
+  app.listen(process.env.PORT);
+  setInterval(() => {
+    http.get(`http://${process.env.PROJECT_DOMAIN}.glitch.me/`);
+  }, 280000);
+}
+
+var GoogleSpreadsheet = require('google-spreadsheet');
+var async = require('async');
+
+// spreadsheet key is the long id in the sheets URL
+var doc = new GoogleSpreadsheet('145J-MEXIGh-ww_gnRtjLyhZ6GXS7t9MH96-Xlsvw7gY');
+var sheet;
+
+const creds = {
+  "type": "service_account",
+  "project_id": process.env.project_id,
+  "private_key_id": process.env.private_key_id,
+  "private_key": process.env.private_key,
+  "client_email": process.env.client_email,
+  "client_id": process.env.client_id,
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://accounts.google.com/o/oauth2/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": process.env.client_x509_cert_url
+}
+/*
+doc.useServiceAccountAuth(creds, function(e){
+  console.log(e)
+});
+
+*/
+var userData = {}
+var botConfig = {}
+function loadBotConfig() {
+  doc.useServiceAccountAuth(creds, function (err) {
+    doc.getRows(1, function (err, rows) {
+      for (let i = 0; i < rows.length; i++) {
+        userData[rows[i].discordid] = rows[i]
+      }
+    });
+
+    doc.getRows(2, function (err, rows) {
+      for (let i = 0; i < rows.length; i++) {
+        botConfig[rows[i].item] = rows[i].message
+      }
+    });
+  });
+}
+
+loadBotConfig()
+
+function encrypt(str) {
+  return key.encrypt(str, 'base64');
+}
+
+function decrypt(str) {
+  return key.decrypt(str, 'utf8');
+}
+
+function sendMsg(item,id,role) {
+  var msg = botConfig[item]
+  //replace all @ with @ zero-width spaces
+  msg = msg.replace(/@/g,'@\u200B')
+  msg = msg.replace(/`user`/g,'<@'+id+'>')
+  msg = msg.replace(/`role`/g,'`@\u200B'+role.name+'`')
+  return msg;
+}
+
+function confirmAccount(id,confirm) {
+  confirm = encrypt(confirm.toLowerCase())
+  doc.getRows(1, function (err, rows) {
+    if(err) {console.log(err);}
+
+    for (let i = 0; i < rows.length; i++) {
+      if (rows[i].discordid == id) {
+        //account already added
+        if (rows[i].confirmedtobe == confirm) {
+          return true;
+        }else {
+          //add alt account
+          rows[i].confirmedtobe += ','+confirm
+          rows[i].save()
+          return true;
+        }
+      }
+    }
+  });
+
+  //add new account
+  doc.addRow(1, {discordid: id, confirmedtobe: confirm} ,function (err, rows) {
+    if(err) {console.log(err);}
+  });
+  
+}
+
+function setNick(gw2,nick) {
+  var n = botConfig['setnickname']
+  n = n.replace(/`gw2`/g,gw2)
+  n = n.replace(/`nick`/g,nick)
+  return n;
+}
 
 client.on("ready", () => {
-  // This event will run if the bot starts, and logs in, successfully.
   console.log(`Bot has started, with ${client.users.size} users, in ${client.channels.size} channels of ${client.guilds.size} guilds.`); 
-  // Example of changing the bot's playing game to something useful. `client.user` is what the
-  // docs refer to as the "ClientUser".
-  client.user.setGame(`on ${client.guilds.size} servers`);
+  client.user.setActivity(`R2dTr0n`);
 });
 
 client.on("guildCreate", guild => {
-  // This event triggers when the bot joins a guild.
   console.log(`New guild joined: ${guild.name} (id: ${guild.id}). This guild has ${guild.memberCount} members!`);
-  client.user.setGame(`on ${client.guilds.size} servers`);
+  client.user.setActivity(`on ${client.guilds.size} servers`);
 });
 
 client.on("guildDelete", guild => {
-  // this event triggers when the bot is removed from a guild.
   console.log(`I have been removed from: ${guild.name} (id: ${guild.id})`);
-  client.user.setGame(`on ${client.guilds.size} servers`);
+  client.user.setActivity(`on ${client.guilds.size} servers`);
 });
 
 
 client.on("message", async message => {
-  // This event will run on every single message received, from any channel or DM.
-  
-  // It's good practice to ignore other bots. This also makes your bot ignore itself
-  // and not get into a spam loop (we call that "botception").
-  
   //if(message.author.bot) return;
   //310050883100737536 gw2bot
   
   if(message.author.id == '310050883100737536'){
 
     
-    var user = message.embeds[0].message.content.split(',')[0] //Just assuming that's their user id.
-var userID = user.replace(/[<@!>]/g, '');
-    console.log(userID)
-    console.log(message.embeds[0].author.name)
+    //var user = message.embeds[0].message.content.split(',')[0] //Just assuming that's their user id.
+//var userID = user.replace(/[<@!>]/g, '');
 
+    var member = message.mentions.members.first();
+    var userID = member.id;
+    var userRole = client.users.get(userID).lastMessage.member._roles
 
+    //console.log(userID)
+    GW2Account = message.embeds[0].author.name
+    //console.log(GW2Account)
+    nickname = client.users.get(userID).lastMessage.member.nickname
+    if (nickname == null){
+      //check username
+      nickname = client.users.get(userID).username
+    }
+    //nickname = nickname.toLowerCase()
 
-  }
- 
-  
-  // Also good practice to ignore any message that does not start with our prefix, 
-  // which is set in the configuration file.
+    if (nickname.toLowerCase().search(GW2Account.toLowerCase()) >= 0){
+      //give role
+      let role = message.guild.roles.find("name", "Trainee");
+      let member = message.mentions.members.first();
+      if (userRole.length == 0) {
+        member.addRole(role).catch(console.error);
+        confirmAccount(userID,GW2Account)
+        message.channel.send(sendMsg('trainee',userID,role))
+      }
+      
+    }else {
+      if (userRole.length == 0) {
+        message.guild.members.get(userID).setNickname(setNick(GW2Account,nickname));
+        member.addRole(role).catch(console.error);
+        confirmAccount(userID,GW2Account)
+        message.channel.send(sendMsg('nickname',userID,role))
+      }
+    }
+
+  }else if (message.author.bot) return;
+
   if(message.content.indexOf(process.env.prefix) !== 0) return;
-  
-  // Here we separate our "command" name, and our "arguments" for the command. 
-  // e.g. if we have the message "+say Is this the real life?" , we'll get the following:
-  // command = say
-  // args = ["Is", "this", "the", "real", "life?"]
   const args = message.content.slice(process.env.prefix.length).trim().split(/ +/g);
   const command = args.shift().toLowerCase();
-  
-  // Let's go with a few common example commands! Feel free to delete or change those.
-  
-  if(command === "ping") {
-    // Calculates ping between sending a message and editing it, giving a nice round-trip latency.
-    // The second ping is an average latency between the bot and the websocket server (one-way, not round-trip)
-    const m = await message.channel.send("Ping?");
-    m.edit(`Pong! Latency is ${m.createdTimestamp - message.createdTimestamp}ms. API Latency is ${Math.round(client.ping)}ms`);
+
+  /*
+  var member = message.mentions.members.first();
+  var userID = member.id;
+*/
+  if (command == 'add') {
+    /*
+    console.log('change')
+    nickname = 'Gw2'
+    message.guild.members.get(userID).setNickname(setNick('tteee.1111',nickname));
+    console.log('changed')
+    //confirmAccount('329708560244146176',args.join(" "))
+    */
   }
-  
+
+  if (command == 'read') {
+console.log('read')
+    //doc.useServiceAccountAuth(creds, function (err) {
+ 
+   // id = "GXBpxtCFY496gbrWZIJ8ed3ia5IB1EenHfjqJDuAdTFg4WXq0QIfjrO4+Ak9W+UH01grLg8W0wtzF/w5StJp1ufPilMo2rDj4lgCLptCRq0ch4505yRW/j/TkUBRG1qLxEg8ucroQI6Zf4eN2d369HrxYB6GD0VueKWUnoSb7wE="
+      doc.getRows(1, function (err, rows) {
+        for (let i = 0; i < rows.length; i++) {
+          //if (rows[i].discordid == id) {
+            cSplit = rows[i].confirmedtobe.split(',')
+            for (let z = 0; z < cSplit.length; z++) {
+              //const element = array[index];
+              console.log(decrypt(cSplit[z]))
+            }
+            //var decrypted = key.decrypt(rows[i].confirmedtobe, 'utf8');
+            //console.log('decrypted: ', decrypted);;
+          //}
+        }
+      })
+   // });
+
+  };
+
+  if(command === "addrole") {
+    let role = message.guild.roles.find("name", "Trainee");
+    let member = message.mentions.members.first();
+console.log(message.mentions.members.roles)
+    if(message.mentions.members.roles == undefined) {
+      console.log('adding role')
+      member.addRole(role).catch(console.error);
+    } else {
+      console.log(`Yay, the author of the message has the role!`);
+    }
+   
+  }
+
   if(command === "say") {
     // makes the bot say something and delete the message. As an example, it's open to anyone to use. 
     // To get the "message" itself we join the `args` back into a string with spaces: 
@@ -97,53 +245,13 @@ var userID = user.replace(/[<@!>]/g, '');
     // And we get the bot to say the thing: 
     message.channel.send(sayMessage);
   }
+  // Let's go with a few common example commands! Feel free to delete or change those.
   
-  if(command === "kick") {
-    // This command must be limited to mods and admins. In this example we just hardcode the role names.
-    // Please read on Array.some() to understand this bit: 
-    // https://developer.mozilla.org/en/docs/Web/JavaScript/Reference/Global_Objects/Array/some?
-    if(!message.member.roles.some(r=>["Administrator", "Moderator"].includes(r.name)) )
-      return message.reply("Sorry, you don't have permissions to use this!");
-    
-    // Let's first check if we have a member and if we can kick them!
-    // message.mentions.members is a collection of people that have been mentioned, as GuildMembers.
-    let member = message.mentions.members.first();
-    if(!member)
-      return message.reply("Please mention a valid member of this server");
-    if(!member.kickable) 
-      return message.reply("I cannot kick this user! Do they have a higher role? Do I have kick permissions?");
-    
-    // slice(1) removes the first part, which here should be the user mention!
-    let reason = args.slice(1).join(' ');
-    if(!reason)
-      return message.reply("Please indicate a reason for the kick!");
-    
-    // Now, time for a swift kick in the nuts!
-    await member.kick(reason)
-      .catch(error => message.reply(`Sorry ${message.author} I couldn't kick because of : ${error}`));
-    message.reply(`${member.user.tag} has been kicked by ${message.author.tag} because: ${reason}`);
-
-  }
-  
-  if(command === "ban") {
-    // Most of this command is identical to kick, except that here we'll only let admins do it.
-    // In the real world mods could ban too, but this is just an example, right? ;)
-    if(!message.member.roles.some(r=>["Administrator"].includes(r.name)) )
-      return message.reply("Sorry, you don't have permissions to use this!");
-    
-    let member = message.mentions.members.first();
-    if(!member)
-      return message.reply("Please mention a valid member of this server");
-    if(!member.bannable) 
-      return message.reply("I cannot ban this user! Do they have a higher role? Do I have ban permissions?");
-
-    let reason = args.slice(1).join(' ');
-    if(!reason)
-      return message.reply("Please indicate a reason for the ban!");
-    
-    await member.ban(reason)
-      .catch(error => message.reply(`Sorry ${message.author} I couldn't ban because of : ${error}`));
-    message.reply(`${member.user.tag} has been banned by ${message.author.tag} because: ${reason}`);
+  if(command === "ping") {
+    // Calculates ping between sending a message and editing it, giving a nice round-trip latency.
+    // The second ping is an average latency between the bot and the websocket server (one-way, not round-trip)
+    const m = await message.channel.send("Ping?");
+    m.edit(`Pong! Latency is ${m.createdTimestamp - message.createdTimestamp}ms. API Latency is ${Math.round(client.ping)}ms`);
   }
   
   if(command === "purge") {
@@ -164,3 +272,4 @@ var userID = user.replace(/[<@!>]/g, '');
 });
 
 client.login(process.env.token);
+//client.login(process.env.token);
