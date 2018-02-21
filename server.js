@@ -77,6 +77,25 @@ function loadBotConfig() {
 }
 
 
+function format(seconds){
+  
+
+  var d = Math.floor(seconds / 86400);
+  var h = Math.floor((seconds % 86400) / 3600);
+  var m = Math.floor(((seconds % 86400) % 3600) / 60);
+  var s = Math.floor(seconds % 3600 % 60);
+
+  //Up for: 1 days, 8 hours, 38 minutes, and 45 seconds
+
+  var dDisplay = d > 0 ? d + (d == 1 ? " day, " : " days, ") : "";
+  var hDisplay = h > 0 ? h + (h == 1 ? " hour, " : " hours, ") : "";
+  var mDisplay = m > 0 ? m + (m == 1 ? " minute, and " : " minutes, and ") : "";
+  var sDisplay = s > 0 ? s + (s == 1 ? " second" : " seconds") : "";
+
+  return dDisplay + hDisplay + mDisplay + sDisplay;
+}
+
+
 
 function encrypt(str) {
   return key.encrypt(str, 'base64');
@@ -274,6 +293,10 @@ console.log(message.mentions.members.roles)
   */
   // Let's go with a few common example commands! Feel free to delete or change those.
   
+  if(command === "uptime") {
+    var uptime = process.uptime();
+    message.channel.send('I have been online for: ' + format(uptime))
+  }
   if(command === "ping") {
     // Calculates ping between sending a message and editing it, giving a nice round-trip latency.
     // The second ping is an average latency between the bot and the websocket server (one-way, not round-trip)
