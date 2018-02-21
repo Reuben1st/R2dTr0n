@@ -4,17 +4,19 @@ if (process.env.NODE_ENV !== 'production') {
 
 const Discord = require("discord.js");
 const client = new Discord.Client();
-const NodeRSA = require('node-rsa');
+
 const http = require('http');
 const express = require('express');
 //const config = require("./config.json");
 
-const key = new NodeRSA(process.env.privateRSA)
 //var PublicPem = key.exportKey('pkcs1-public-pem');
 //var privatePem = key.exportKey('pkcs1-pem');
+const NodeRSA = require('node-rsa');
+const key = new NodeRSA();
+const keyData = process.env.privateRSA.replace(/\\n/g, '\n')
+key.importKey(keyData,'pkcs1')
 
 
-if (process.env.NODE_ENV == 'production') {
   const app = express();
   app.get("/", (request, response) => {
     console.log(Date.now() + " Ping Received");
@@ -24,7 +26,7 @@ if (process.env.NODE_ENV == 'production') {
   setInterval(() => {
     http.get(`http://${process.env.PROJECT_DOMAIN}.glitch.me/`);
   }, 280000);
-}
+
 
 var GoogleSpreadsheet = require('google-spreadsheet');
 var async = require('async');
@@ -33,11 +35,13 @@ var async = require('async');
 var doc = new GoogleSpreadsheet('145J-MEXIGh-ww_gnRtjLyhZ6GXS7t9MH96-Xlsvw7gY');
 var sheet;
 
+var pKey = process.env.private_key.replace(/\\n/g, '\n')
+
 const creds = {
   "type": "service_account",
   "project_id": process.env.project_id,
   "private_key_id": process.env.private_key_id,
-  "private_key": process.env.private_key,
+  "private_key": pKey,
   "client_email": process.env.client_email,
   "client_id": process.env.client_id,
   "auth_uri": "https://accounts.google.com/o/oauth2/auth",
@@ -51,16 +55,19 @@ doc.useServiceAccountAuth(creds, function(e){
 });
 
 */
-var userData = {}
+loadBotConfig()
+//var userData = {}
 var botConfig = {}
 function loadBotConfig() {
+  
   doc.useServiceAccountAuth(creds, function (err) {
+    /*
     doc.getRows(1, function (err, rows) {
       for (let i = 0; i < rows.length; i++) {
         userData[rows[i].discordid] = rows[i]
       }
     });
-
+    */
     doc.getRows(2, function (err, rows) {
       for (let i = 0; i < rows.length; i++) {
         botConfig[rows[i].item] = rows[i].message
@@ -69,7 +76,7 @@ function loadBotConfig() {
   });
 }
 
-loadBotConfig()
+
 
 function encrypt(str) {
   return key.encrypt(str, 'base64');
@@ -89,14 +96,17 @@ function sendMsg(item,id,role) {
 }
 
 function confirmAccount(id,confirm) {
-  confirm = encrypt(confirm.toLowerCase())
+  var tmpConfirm = confirm.toLowerCase()
+  var confirm = encrypt(tmpConfirm.toLowerCase())
   doc.getRows(1, function (err, rows) {
     if(err) {console.log(err);}
 
     for (let i = 0; i < rows.length; i++) {
+      
       if (rows[i].discordid == id) {
         //account already added
-        if (rows[i].confirmedtobe == confirm) {
+        if (decrypt(rows[i].confirmedtobe) == tmpConfirm) {
+          
           return true;
         }else {
           //add alt account
@@ -106,12 +116,14 @@ function confirmAccount(id,confirm) {
         }
       }
     }
+    
+    //add new account
+    doc.addRow(1, {discordid: id, confirmedtobe: confirm} ,function (err, rows) {
+      if(err) {console.log(err);}
+    });
   });
 
-  //add new account
-  doc.addRow(1, {discordid: id, confirmedtobe: confirm} ,function (err, rows) {
-    if(err) {console.log(err);}
-  });
+  
   
 }
 
@@ -149,27 +161,32 @@ client.on("message", async message => {
 //var userID = user.replace(/[<@!>]/g, '');
 
     var member = message.mentions.members.first();
+    if (member == null || member == undefined){return;}
     var userID = member.id;
     var userRole = client.users.get(userID).lastMessage.member._roles
 
     //console.log(userID)
-    GW2Account = message.embeds[0].author.name
+    if (message.embeds[0] == null || message.embeds[0] == undefined){return;}
+    var GW2Account = message.embeds[0].author.name
+    if (GW2Account == null || GW2Account == undefined){return;}
     //console.log(GW2Account)
-    nickname = client.users.get(userID).lastMessage.member.nickname
+    var nickname = client.users.get(userID).lastMessage.member.nickname
     if (nickname == null){
       //check username
       nickname = client.users.get(userID).username
     }
     //nickname = nickname.toLowerCase()
-
+    var role = message.guild.roles.find("name", "Trainee");
+    var member = message.mentions.members.first();
     if (nickname.toLowerCase().search(GW2Account.toLowerCase()) >= 0){
       //give role
-      let role = message.guild.roles.find("name", "Trainee");
-      let member = message.mentions.members.first();
+      
       if (userRole.length == 0) {
         member.addRole(role).catch(console.error);
         confirmAccount(userID,GW2Account)
         message.channel.send(sendMsg('trainee',userID,role))
+      }else {
+        confirmAccount(userID,GW2Account)
       }
       
     }else {
@@ -191,6 +208,13 @@ client.on("message", async message => {
   var member = message.mentions.members.first();
   var userID = member.id;
 */
+  
+  if (command == 'update') {
+    //userData = {}
+    botConfig = {}
+    loadBotConfig()
+    message.channel.send('Bot config updated')
+  }
   if (command == 'add') {
     /*
     console.log('change')
@@ -209,7 +233,7 @@ console.log('read')
       doc.getRows(1, function (err, rows) {
         for (let i = 0; i < rows.length; i++) {
           //if (rows[i].discordid == id) {
-            cSplit = rows[i].confirmedtobe.split(',')
+            var cSplit = rows[i].confirmedtobe.split(',')
             for (let z = 0; z < cSplit.length; z++) {
               //const element = array[index];
               console.log(decrypt(cSplit[z]))
@@ -222,7 +246,7 @@ console.log('read')
    // });
 
   };
-
+/*
   if(command === "addrole") {
     let role = message.guild.roles.find("name", "Trainee");
     let member = message.mentions.members.first();
@@ -235,7 +259,8 @@ console.log(message.mentions.members.roles)
     }
    
   }
-
+  */
+/*
   if(command === "say") {
     // makes the bot say something and delete the message. As an example, it's open to anyone to use. 
     // To get the "message" itself we join the `args` back into a string with spaces: 
@@ -245,6 +270,8 @@ console.log(message.mentions.members.roles)
     // And we get the bot to say the thing: 
     message.channel.send(sayMessage);
   }
+  
+  */
   // Let's go with a few common example commands! Feel free to delete or change those.
   
   if(command === "ping") {
