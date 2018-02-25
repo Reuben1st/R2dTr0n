@@ -119,7 +119,6 @@ function confirmAccount(id,confirm) {
   var confirm = encrypt(tmpConfirm.toLowerCase())
   doc.getRows(1, function (err, rows) {
     if(err) {console.log(err);}
-
     for (let i = 0; i < rows.length; i++) {
       
       if (rows[i].discordid == id) {
@@ -150,6 +149,7 @@ function setNick(gw2,nick) {
   var n = botConfig['setnickname']
   n = n.replace(/`gw2`/g,gw2)
   n = n.replace(/`nick`/g,nick)
+  console.log('Setting nickname: '+ n)
   return n;
 }
 
@@ -160,12 +160,12 @@ client.on("ready", () => {
 
 client.on("guildCreate", guild => {
   console.log(`New guild joined: ${guild.name} (id: ${guild.id}). This guild has ${guild.memberCount} members!`);
-  client.user.setActivity(`on ${client.guilds.size} servers`);
+  //client.user.setActivity(`on ${client.guilds.size} servers`);
 });
 
 client.on("guildDelete", guild => {
   console.log(`I have been removed from: ${guild.name} (id: ${guild.id})`);
-  client.user.setActivity(`on ${client.guilds.size} servers`);
+  //client.user.setActivity(`on ${client.guilds.size} servers`);
 });
 
 
@@ -179,41 +179,41 @@ client.on("message", async message => {
     //var user = message.embeds[0].message.content.split(',')[0] //Just assuming that's their user id.
 //var userID = user.replace(/[<@!>]/g, '');
 
-    var member = message.mentions.members.first();
+    var member = await message.mentions.members.first();
     if (member == null || member == undefined){return;}
     var userID = member.id;
-    var userRole = client.users.get(userID).lastMessage.member._roles
+    var userRole = await client.users.get(userID).lastMessage.member._roles
 
     //console.log(userID)
     if (message.embeds[0] == null || message.embeds[0] == undefined){return;}
-    var GW2Account = message.embeds[0].author.name
+    var GW2Account = await message.embeds[0].author.name
     if (GW2Account == null || GW2Account == undefined){return;}
     //console.log(GW2Account)
-    var nickname = client.users.get(userID).lastMessage.member.nickname
+    var nickname = await client.users.get(userID).lastMessage.member.nickname
     if (nickname == null){
       //check username
-      nickname = client.users.get(userID).username
+      nickname = await client.users.get(userID).username
     }
     //nickname = nickname.toLowerCase()
     var role = message.guild.roles.find("name", "Trainee");
-    var member = message.mentions.members.first();
+    
     if (nickname.toLowerCase().search(GW2Account.toLowerCase()) >= 0){
       //give role
       
       if (userRole.length == 0) {
-        member.addRole(role).catch(console.error);
         confirmAccount(userID,GW2Account)
-        message.channel.send(sendMsg('trainee',userID,role))
+        await member.addRole(role).catch(console.error);
+        await message.channel.send(sendMsg('trainee',userID,role))
       }else {
         confirmAccount(userID,GW2Account)
       }
       
     }else {
       if (userRole.length == 0) {
-        message.guild.members.get(userID).setNickname(setNick(GW2Account,nickname));
-        member.addRole(role).catch(console.error);
         confirmAccount(userID,GW2Account)
-        message.channel.send(sendMsg('nickname',userID,role))
+        await message.guild.members.get(userID).setNickname(setNick(GW2Account,nickname)).catch(error => message.channel.send(`Couldn't change nickname messages because of: ${error}`));
+        await member.addRole(role).catch(console.error);
+        await message.channel.send(sendMsg('nickname',userID,role))
       }
     }
 
@@ -292,7 +292,11 @@ console.log(message.mentions.members.roles)
   
   */
   // Let's go with a few common example commands! Feel free to delete or change those.
-  
+  if(command === "removerole") {
+    var role = message.guild.roles.find("name", "Trainee");
+    var member = message.member
+    member.removeRole(role).catch(console.error);
+  }
   if(command === "uptime") {
     var uptime = process.uptime();
     message.channel.send('I have been online for: ' + format(uptime))
