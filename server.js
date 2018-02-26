@@ -19,7 +19,7 @@ key.importKey(keyData,'pkcs1')
 
   const app = express();
   app.get("/", (request, response) => {
-    console.log(Date.now() + " Ping Received");
+    //console.log(Date.now() + " Ping Received");
     response.sendStatus(200);
   });
   app.listen(process.env.PORT);
@@ -36,7 +36,7 @@ var doc = new GoogleSpreadsheet('145J-MEXIGh-ww_gnRtjLyhZ6GXS7t9MH96-Xlsvw7gY');
 var sheet;
 
 var pKey = process.env.private_key.replace(/\\n/g, '\n')
-
+var ignoreBot = false
 const creds = {
   "type": "service_account",
   "project_id": process.env.project_id,
@@ -76,6 +76,15 @@ function loadBotConfig() {
   });
 }
 
+function consoleLog(a,b){
+  console.log(a,b)
+  if (a == 'Error') {
+    a = '<@' + process.env.owner +'> Error'
+  }
+  client.channels.get('417600417824768010').send(a+': '+b)
+
+
+}
 
 function format(seconds){
   
@@ -118,7 +127,7 @@ function confirmAccount(id,confirm) {
   var tmpConfirm = confirm.toLowerCase()
   var confirm = encrypt(tmpConfirm.toLowerCase())
   doc.getRows(1, function (err, rows) {
-    if(err) {console.log(err);}
+    if(err) {consoleLog('Error',err);}
     for (let i = 0; i < rows.length; i++) {
       
       if (rows[i].discordid == id) {
@@ -137,7 +146,7 @@ function confirmAccount(id,confirm) {
     
     //add new account
     doc.addRow(1, {discordid: id, confirmedtobe: confirm} ,function (err, rows) {
-      if(err) {console.log(err);}
+      if(err) {consoleLog('Error',err);}
     });
   });
 
@@ -149,22 +158,26 @@ function setNick(gw2,nick) {
   var n = botConfig['setnickname']
   n = n.replace(/`gw2`/g,gw2)
   n = n.replace(/`nick`/g,nick)
-  console.log('Setting nickname: '+ n)
+
+  if (n.length >= 32 || nick == undefined) {
+    n = gw2
+  }
+  consoleLog('Action','Setting nickname: '+ n)
   return n;
 }
 
 client.on("ready", () => {
-  console.log(`Bot has started, with ${client.users.size} users, in ${client.channels.size} channels of ${client.guilds.size} guilds.`); 
+  consoleLog('Log',`Bot has started, with ${client.users.size} users, in ${client.channels.size} channels of ${client.guilds.size} guilds.`); 
   client.user.setActivity(`R2dTr0n`);
 });
 
 client.on("guildCreate", guild => {
-  console.log(`New guild joined: ${guild.name} (id: ${guild.id}). This guild has ${guild.memberCount} members!`);
+  consoleLog('Log',`New guild joined: ${guild.name} (id: ${guild.id}). This guild has ${guild.memberCount} members!`);
   //client.user.setActivity(`on ${client.guilds.size} servers`);
 });
 
 client.on("guildDelete", guild => {
-  console.log(`I have been removed from: ${guild.name} (id: ${guild.id})`);
+  consoleLog('Log',`I have been removed from: ${guild.name} (id: ${guild.id})`);
   //client.user.setActivity(`on ${client.guilds.size} servers`);
 });
 
@@ -173,9 +186,8 @@ client.on("message", async message => {
   //if(message.author.bot) return;
   //310050883100737536 gw2bot
   
-  if(message.author.id == '310050883100737536'){
+  if(message.author.id == '310050883100737536' && !ignoreBot){
 
-    
     //var user = message.embeds[0].message.content.split(',')[0] //Just assuming that's their user id.
 //var userID = user.replace(/[<@!>]/g, '');
 
@@ -204,6 +216,7 @@ client.on("message", async message => {
         confirmAccount(userID,GW2Account)
         await member.addRole(role).catch(console.error);
         await message.channel.send(sendMsg('trainee',userID,role))
+        consoleLog('Action','Adding role to: ' + GW2Account)
       }else {
         confirmAccount(userID,GW2Account)
       }
@@ -211,9 +224,10 @@ client.on("message", async message => {
     }else {
       if (userRole.length == 0) {
         confirmAccount(userID,GW2Account)
-        await message.guild.members.get(userID).setNickname(setNick(GW2Account,nickname)).catch(error => message.channel.send(`Couldn't change nickname messages because of: ${error}`));
-        await member.addRole(role).catch(console.error);
+        await message.guild.members.get(userID).setNickname(setNick(GW2Account,nickname)).catch(error => consoleLog('Error',`Couldn't change nickname messages because of: ${error}`));
+        await member.addRole(role).catch(error => consoleLog('Error',error));
         await message.channel.send(sendMsg('nickname',userID,role))
+        consoleLog('Action','Adding role to: ' + nickname)
       }
     }
 
@@ -232,9 +246,16 @@ client.on("message", async message => {
     //userData = {}
     botConfig = {}
     loadBotConfig()
-    message.channel.send('Bot config updated')
+    consoleLog('Bot','Bot config updated')
   }
-  if (command == 'add') {
+  if (command == 'ignorebot') {
+    ignoreBot = !ignoreBot
+    consoleLog('Bot','Ignoring GW2Bot: '+ ignoreBot)
+  }
+  if (command == 'getid') {
+    console.log(message.channel.id)
+    console.log(message.author.id, message.author.id.length)
+    //client.channels.get('417600417824768010').send('test')
     /*
     console.log('change')
     nickname = 'Gw2'
@@ -247,19 +268,21 @@ client.on("message", async message => {
   if (command == 'read') {
 console.log('read')
     //doc.useServiceAccountAuth(creds, function (err) {
- 
+    if (isNaN(args[0])){message.channel.send('Please enter a number'); return;}
+
    // id = "GXBpxtCFY496gbrWZIJ8ed3ia5IB1EenHfjqJDuAdTFg4WXq0QIfjrO4+Ak9W+UH01grLg8W0wtzF/w5StJp1ufPilMo2rDj4lgCLptCRq0ch4505yRW/j/TkUBRG1qLxEg8ucroQI6Zf4eN2d369HrxYB6GD0VueKWUnoSb7wE="
+      var id = args[0]
       doc.getRows(1, function (err, rows) {
         for (let i = 0; i < rows.length; i++) {
-          //if (rows[i].discordid == id) {
+          if (rows[i].discordid == id) {
             var cSplit = rows[i].confirmedtobe.split(',')
             for (let z = 0; z < cSplit.length; z++) {
               //const element = array[index];
-              console.log(decrypt(cSplit[z]))
+              consoleLog('Decrypt',decrypt(cSplit[z]))
             }
             //var decrypted = key.decrypt(rows[i].confirmedtobe, 'utf8');
             //console.log('decrypted: ', decrypted);;
-          //}
+          }
         }
       })
    // });
@@ -292,6 +315,17 @@ console.log(message.mentions.members.roles)
   
   */
   // Let's go with a few common example commands! Feel free to delete or change those.
+  if (command === 'manualnick' && message.author.id == process.env.owner ){
+    if (isNaN(args[0])){return;}
+    if (args[0] == undefined || args[1] == undefined){return;}
+    var id = args[0]
+    var GW2Acc = args[1]
+      GW2Acc = GW2Acc.replace(/`s/g,' ')
+    var nick = args[2]
+    await message.guild.members.get(id).setNickname(setNick(GW2Acc,nick)).catch(error => consoleLog('Error',`Couldn't change nickname messages because of: ${error}`));
+
+  }
+
   if(command === "removerole") {
     var role = message.guild.roles.find("name", "Trainee");
     var member = message.member
@@ -326,4 +360,3 @@ console.log(message.mentions.members.roles)
 });
 
 client.login(process.env.token);
-//client.login(process.env.token);
