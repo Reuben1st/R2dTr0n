@@ -230,6 +230,7 @@ client.on("message", async message => {
       
     }else {
       if (userRole.length == 0) {
+        //set nickname
         try {
           m = await consoleLog('Pre-Action','Checking database for: ' + GW2Account,true) 
           confirmAccount(userID,GW2Account)
