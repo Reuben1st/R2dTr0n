@@ -71,7 +71,7 @@ function loadBotConfig() {
     */
     doc.getRows(2, function (err, rows) {
       for (let i = 0; i < rows.length; i++) {
-        botConfig[rows[i].item] = rows[i].message
+        botConfig[rows[i].item] = rows[i].info
       }
     });
   });
@@ -81,16 +81,16 @@ async function consoleLog(a,b,c){
   var consoleChannel = await client.channels.get('417600417824768010')
   console.log(a,b)
   if (a == 'Error') {
-    a = '<@' + process.env.owner +'> Error'
+    a = `<@${process.env.owner}> Error`
   }
   if (c == true){
     //will edit later
-    return await consoleChannel.send(a+': '+b);
+    return await consoleChannel.send(`${a} >> ${b}`);
   }else if(typeof c == 'object'){
     //edit
-    return await c.edit(a+': '+b);
+    return await c.edit(`${a} >> ${b}`);
   }else {
-    consoleChannel.send(a+': '+b)
+    consoleChannel.send(`${a} >> ${b}`)
   }
 }
 
@@ -266,6 +266,7 @@ client.on("message", async message => {
   if (command == 'getid') {
     console.log(message.channel.id)
     console.log(message.author.id, message.author.id.length)
+    console.log(message.guild.roles)
   }
 
   if (command == 'read') {
