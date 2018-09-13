@@ -8,7 +8,6 @@
   "restart": {
     "exclude": [
       "^public/",
-      "^commands/",
       "^dist/"
     ],
     "include": [
@@ -16,5 +15,5 @@
       "\\.json"
     ]
   },
-  "throttle": 15000
+  "throttle": 9000
 }
