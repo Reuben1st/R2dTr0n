@@ -282,7 +282,7 @@ function addNewWing(w) {
     if (r.name.toLowerCase() === a){dID = r.id;return;}
   })
 
-  doc.addRow(4, {command: b, minrank: botConfig.minrank,discordid: dID,type: 'toggle'} ,function (err, rows) {
+  doc.addRow(4, {command: b, minrank: botConfig.minrank,discordid: dID,type: 'toggle',achievement: 'null'} ,function (err, rows) {
     if(err) {consoleLog('Error',err,'');}
   })
   
